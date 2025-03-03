@@ -1,0 +1,109 @@
+import express from "express";
+import cors from "cors";
+import productRoutes from "./routes/product.js";
+import articleRoutes from "./routes/article.js";
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+app.use("/products", productRoutes);
+app.use("/articles", articleRoutes);
+
+app.listen(port, () => console.log(`서버 실행 중: http://localhost:${port}`));
+
+function asyncHandler(handler) {
+  return async function (req, res) {
+    try {
+      await handler(req, res);
+    } catch (e) {
+      if (
+        e.name === "StructError" ||
+        e instanceof Prisma.PrismaClientValidationError
+      ) {
+        res.status(400).send({ message: e.message });
+      } else if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2025"
+      ) {
+        res.sendStatus(404);
+      } else {
+        res.status(500).send({ message: e.message });
+      }
+    }
+  };
+}
+
+/*********** users ***********/
+
+app.get(
+  "/users",
+  asyncHandler(async (req, res) => {
+    const { offset = 0, limit = 10, order = "newest" } = req.query;
+    let orderBy;
+    switch (order) {
+      case "oldest":
+        orderBy = { createdAt: "asc" };
+        break;
+      case "newest":
+      default:
+        orderBy = { createdAt: "desc" };
+    }
+    const users = await prisma.user.findMany({
+      orderBy,
+      skip: parseInt(offset),
+      take: parseInt(limit),
+    });
+    res.send(users);
+  })
+);
+
+app.get(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id },
+    });
+    res.send(user);
+  })
+);
+
+app.post(
+  "/users",
+  asyncHandler(async (req, res) => {
+    assert(req.body, CreateUser);
+    const user = await prisma.user.create({
+      data: req.body,
+    });
+    res.status(201).send(user);
+  })
+);
+
+app.patch(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    assert(req.body, PatchUser);
+    const { id } = req.params;
+    const user = await prisma.user.update({
+      where: { id },
+      data: req.body,
+    });
+    res.send(user);
+  })
+);
+
+app.delete(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    await prisma.user.delete({
+      where: { id },
+    });
+    res.sendStatus(204);
+  })
+);
+
+app.listen(process.env.PORT || 3000, () => console.log("Server Started"));
